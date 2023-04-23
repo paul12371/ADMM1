@@ -1,0 +1,68 @@
+function [MSE,time,blk_rank,X]=Binary_Search_RP_ADMM(block_num,Repsilon,H,r,option)
+if (nargin < 6)
+blk_num=length(block_num);
+tic
+    maxmiter=15;
+    lambda0=0;
+    lambda1=blk_num*1e2;
+    blk_rank1=RP_ADMM_with_nuclear_norm(block_num,Repsilon,H,lambda1);
+    y1=sum(blk_rank1);miter=1;
+    while y1-r>0 && miter<=maxmiter
+        lambda0=lambda1;
+        lambda1=4*lambda1;
+        blk_rank1=RP_ADMM_with_nuclear_norm(block_num,Repsilon,H,lambda1);
+        y1=sum(blk_rank1);
+        miter=miter+1;
+    end
+    if miter<=maxmiter
+    lambda_d=(lambda0+lambda1)/2;
+    blk_rank=RP_ADMM_with_nuclear_norm(block_num,Repsilon,H,lambda_d);
+    yd=sum(blk_rank)-r;
+    while abs(yd)>0
+        if yd<0
+            lambda1=lambda_d;
+        else
+             lambda0=lambda_d;
+        end
+        lambda_d=(lambda0+lambda1)/2;
+        blk_rank=RP_ADMM_with_nuclear_norm(block_num,Repsilon,H,lambda_d);
+        yd=sum(blk_rank)-r;
+    end
+    [MSE,~,X]=BCD2_fix_assignment(blk_rank,block_num,Repsilon,H);
+    else
+        MSE=-pi;
+        blk_rank=zeros(size(blk_rank1));
+        X=[];
+    end
+    time=toc;
+    
+else
+    
+    blk_num=length(block_num);
+tic
+    lambda0=0;
+    lambda1=blk_num*1e2;
+    blk_rank1=RP_ADMM_with_nuclear_norm(block_num,Repsilon,H,lambda1,option);
+    y1=sum(blk_rank1);
+    while y1-r>0
+        lambda0=lambda1;
+        lambda1=2*lambda1;
+        blk_rank1=RP_ADMM_with_nuclear_norm(block_num,Repsilon,H,lambda1,option);
+        y1=sum(blk_rank1);
+    end
+    lambda_d=(lambda0+lambda1)/2;
+    blk_rank=RP_ADMM_with_nuclear_norm(block_num,Repsilon,H,lambda_d,option);
+    yd=sum(blk_rank)-r;
+    while abs(yd)>0
+        if yd<0
+            lambda0=lambda_d;
+        else
+             lambda1=lambda_d;
+        end
+        lambda_d=(lambda0+lambda1)/2;
+        blk_rank=RP_ADMM_with_nuclear_norm(block_num,Repsilon,H,lambda_d,option);
+        yd=sum(blk_rank)-r;
+    end
+    [MSE,~,X]=BCD2_fix_assignment(blk_rank,block_num,Repsilon,H);
+    time=toc;
+end
