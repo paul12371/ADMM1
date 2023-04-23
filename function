@@ -1,0 +1,93 @@
+function blk_rank=RP_ADMM_with_nuclear_norm(block_num,Repsilon,H,mu,option)
+if (nargin < 6); option = []; end
+[m,n]=size(H);
+pinvH=pinv(H);
+epsilon=1e-2;
+max_iter=50000;
+if isfield(option,'X')                G        = option.X; end
+if isfield(option,'epsilon');      epsilon = option.epsilon; end
+if isfield(option,'max_iter');    max_iter = option.max_iter; end
+sum_index_s=[0,cumsum(block_num)];
+blk_num=length(block_num);
+A=zeros(n,m);
+N=zeros(1,blk_num);beta=max(mu,1);
+ProjectNH=eye(size(H,1))-H*pinvH;
+Y=rand(n,m);
+ProjectY=Y*ProjectNH;
+G=pinvH+ProjectY;
+LAMBDA=zeros(size(G));
+invRepsilon=zeros(size(Repsilon));
+alpha=1.8;
+v=mu/beta;
+A=pinvH+ProjectY-1/beta*LAMBDA;
+blk_dex=randperm(blk_num);
+for k=1:blk_num
+    p=blk_dex(k);
+    [U,D,V] = svd(A(:,sum_index_s(p)+1:sum_index_s(p+1)),'econ');
+    d1=diag(D);
+    D1=diag((d1>=v).*(d1-v));
+    G(:,sum_index_s(p)+1:sum_index_s(p+1))=U*D1*V';
+    invRepsilon(sum_index_s(p)+1:sum_index_s(p+1),sum_index_s(p)+1:sum_index_s(p+1))=inv(Repsilon(sum_index_s(p)+1:sum_index_s(p+1),sum_index_s(p)+1:sum_index_s(p+1))+beta/2*eye(block_num(p)));
+    N(p)=sum(sum(D1));
+end
+G_RP=alpha*G+(1-alpha)*(pinvH+ProjectY);
+AX=ProjectNH*(Repsilon+beta/2*eye(m))*ProjectNH;BX=(-pinvH*Repsilon+1/2*LAMBDA+beta/2*(G_RP-pinvH))*ProjectNH;
+opts.SYM = true;
+Y_new=(linsolve(AX,BX',opts))';
+ProjectY=Y_new*ProjectNH;
+LAMBDA=LAMBDA+beta*(G_RP-(pinvH+ProjectY));
+obj_old=sum(sum(G*Repsilon.*G))+mu*sum(N);
+iter=1;
+%% main iteration
+while 1
+    A=pinvH+ProjectY-1/beta*LAMBDA;
+    %blk_dex=randperm(blk_num);
+for k=1:blk_num
+    p=k;
+    [U,D,V] = svd(A(:,sum_index_s(p)+1:sum_index_s(p+1)),'econ');
+    d1=diag(D);
+    D1=diag((d1>=v).*(d1-v));
+    G(:,sum_index_s(p)+1:sum_index_s(p+1))=U*D1*V';
+    invRepsilon(sum_index_s(p)+1:sum_index_s(p+1),sum_index_s(p)+1:sum_index_s(p+1))=inv(Repsilon(sum_index_s(p)+1:sum_index_s(p+1),sum_index_s(p)+1:sum_index_s(p+1))+beta/2*eye(block_num(p)));
+    N(p)=sum(sum(D1));
+end
+G_RP=alpha*G+(1-alpha)*(pinvH+ProjectY);
+AX=ProjectNH*(Repsilon+beta/2*eye(m))*ProjectNH;BX=(-pinvH*Repsilon+1/2*LAMBDA+beta/2*(G_RP-pinvH))*ProjectNH;
+opts.SYM = true;
+Y_new=(linsolve(AX,BX',opts))';% BX*pinv(AX);
+ProjectY_new=Y_new*ProjectNH;
+LAMBDA=LAMBDA+beta*(G_RP-(pinvH+ProjectY_new));
+S=beta/mu*((2-alpha)*ProjectY-ProjectY_new+(1-alpha)*(pinvH-G));
+ProjectY=ProjectY_new;
+R=G-(pinvH+ProjectY);
+% LAMBDA=LAMBDA+beta*R;
+%% stop condition 
+obj_new=sum(sum(G*Repsilon.*G))+mu*sum(N);
+rt=norm(R,'fro');
+st=norm(S,'fro');
+if rt<epsilon && st<epsilon
+    work_break=1;
+    break
+end
+% if iter>max_iter
+%     work_break=2
+%     break
+% end
+iter=iter+1;
+end
+P_new=G-LAMBDA;
+for p=1:blk_num
+    [U,D,V] = svd(P_new(:,sum_index_s(p)+1:sum_index_s(p+1)),'econ');
+    d1=diag(D);
+    D1=diag((d1>=mu).*(d1-mu));
+    G_hat(:,sum_index_s(p)+1:sum_index_s(p+1))=U*D1*V';
+end
+SS=G-G_hat;
+SSD=2*Y_new*ProjectNH*Repsilon*ProjectNH+2*pinvH*Repsilon*ProjectNH-LAMBDA*ProjectNH;
+ss=norm(SS,'fro');
+ssd=norm(SSD,'fro');
+blk_rank=zeros(1,blk_num);
+for ii=1:blk_num
+ blk_rank(ii)=rank(G(:,sum_index_s(ii)+1:sum_index_s(ii+1))); 
+%  eig(G(:,sum_index_s(ii)+1:sum_index_s(ii+1)))
+end
