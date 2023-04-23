@@ -1,0 +1,32 @@
+% 主函数
+% 生成随机数据
+n = 10; % 矩阵大小
+p = 0.1; % 矩阵稀疏度
+X = sprand(n,n,p); % 随机稀疏矩阵
+%H = randn(n,n); % 随机观测矩阵
+%Repsilon = H*X*H'; % 观测数据
+
+range = 1:n; % 整数取值范围
+H = zeros(n, n); % 预分配矩阵空间
+
+for i = 1:n
+    H(i, :) = randperm(length(range), n);
+end
+Repsilon = H*X*H'; % 观测数据
+%Repsilon=0.1;
+
+% 设置参数
+block_num = 10; % 块数
+r = 50; % 目标秩
+option = 1; % 选项
+
+% 调用函数
+[MSE,time,blk_rank,X_hat] = Binary_Search_RP_ADMM(block_num,Repsilon,H,r,option);
+
+% 显示结果
+disp('均方误差：')
+disp(MSE)
+disp('运行时间：')
+disp(time)
+disp('每个块的秩：')
+disp(blk_rank)
